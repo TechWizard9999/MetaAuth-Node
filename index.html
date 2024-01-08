@@ -44,5 +44,74 @@
     </style>
 </head>
 <body>
+    <h1>Ethers.js Sign Message Example</h1>
+    <button onclick="signMessage()">Sign Message</button>
+    <p id="p1"></p>
+    <script>
+        async function getNonce() {
+            const response = await fetch('/api/nonce');
+            const data = await response.json();
+            return data.nonce;
+        }
+
+        async function signMessage() {
+            try {
+                var element = document.getElementById("p1");
+                let stored = window.localStorage.getItem("token");
+                if (stored != null) {
+                    let token = stored;
+                    const response = await fetch('/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    let newresponse = await response.json();
+                    if (newresponse == "ok") {
+                        window.location.href = '/success';
+                    } else {
+                        window.localStorage.removeItem("token");
+                        element.innerHTML = "Token Expired, log in again to get a new Token !!!";
+                    }
+                } else {
+                    const nonce = await getNonce();
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const signer = provider.getSigner();
+                    const address = await signer.getAddress();
+                    const message = `I am signing this message to prove my identity. Nonce: ${nonce}`;
+                    const signedMessage = await signer.signMessage(message);
+                    const data = { signedMessage, message, address };
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    let token = await response.json();
+                    window.localStorage.setItem("token", token);
+                    const newResponse = await fetch('/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    let answer = await newResponse.json();
+                    if (answer == "ok") {
+                        window.location.href = '/success';
+                    } else {
+                        element.innerHTML = "Invalid Token !!!";
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    </script>
 </body>
 </html>
